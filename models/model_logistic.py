@@ -1,19 +1,14 @@
-from sklearn.linear_model import LogisticRegression
-
 import copy
-from .util import Util
-from .model_base import Model
+import lightgbm as lgb
+from sklearn.linear_model import LogisticRegression
+from model_base import Model
 
 
 class ModelLogistic(Model):
-    def __init__(self):
-        self.model  = LogisticRegression()
-
-    
-    def train(self, x, y, va_x=None, va_y=None, params=None,weight=None):
-        # インスタンス
+    def train(self, x, y, params, va_x=None, va_y=None):
+        # ハイパーパラメータの設定
+        self.model = LogisticRegression(**params)
         self.model.fit(x, y)
 
     def predict(self, te_x):
-        dtest = te_x
-        return self.model.predict(te_x)
+        return self.model.predict_proba(te_x)[:, 1]
