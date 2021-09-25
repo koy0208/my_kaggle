@@ -188,7 +188,6 @@ def train_cv(x, y, model, params, te_x=None, te_y=None, n_fold=4, stratified=Tru
 
     return va_preds, np.mean(te_preds, axis=0)
 
-
 # ハイパラメーターチューニング
 def tuningOfRF(X, y):
     def objective(trial):
