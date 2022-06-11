@@ -1,4 +1,5 @@
 import sys
+import pickle
 import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
@@ -14,6 +15,8 @@ import sklearn.neighbors._base
 sys.modules["sklearn.neighbors.base"] = sklearn.neighbors._base
 from missingpy import MissForest
 
+
+# ターゲットエンコーディング
 def tg_encoding(pre_tr_x, pre_te_x, tr_y, group_cols):
     tr_x = pre_tr_x.copy()
     te_x = pre_te_x.copy()
@@ -27,6 +30,7 @@ def tg_encoding(pre_tr_x, pre_te_x, tr_y, group_cols):
     return tr_x, te_x
 
 
+# 集団の平均値
 def tg_group_agg(pre_tr_x, pre_te_x, target_col, group_cols, how="mean"):
     tr_x = pre_tr_x.copy()
     te_x = pre_te_x.copy()
@@ -40,25 +44,41 @@ def tg_group_agg(pre_tr_x, pre_te_x, target_col, group_cols, how="mean"):
     return tr_x, te_x
 
 
-def cat_to_num(pre_tr_x, pre_te_x, target_col, how="one_hot"):
-    tr_x = pre_tr_x.reset_index(drop=True).copy()
-    te_x = pre_te_x.reset_index(drop=True).copy()
-    if how == "one_hot":
-        ohe = OneHotEncoder(sparse=False, handle_unknown="error", drop="first")
-        tr_en = ohe.fit_transform(tr_x[target_col])
-        te_en = ohe.transform(te_x[target_col])
-        # 列名を取得
-        label = ohe.get_feature_names(target_col)
-        # データフレーム化
-        tr_en = pd.DataFrame(tr_en, columns=label)
-        te_en = pd.DataFrame(te_en, columns=label)
-        # データフレームを結合
-        tr_x = pd.concat([tr_x, tr_en], axis=1)
-        te_x = pd.concat([te_x, te_en], axis=1)
+# カテゴリから数値への変換
+def cat_to_num(pre_tr_x, pre_te_x=False, target_col=False, how="one_hot", save_name=False, model=False):
+    if model:
+        tr_x = pre_tr_x.reset_index(drop=True).copy()
+        if how == "one_hot":
+            tr_en = model.transform(tr_x[target_col])
+            # 列名を取得
+            label = model.get_feature_names(target_col)
+            # データフレーム化
+            tr_en = pd.DataFrame(tr_en, columns=label)
+            # データフレームを結合
+            tr_x = pd.concat([tr_x, tr_en], axis=1)
+        return tr_x.drop(columns=target_col, axis=1)
+    else:
+        tr_x = pre_tr_x.reset_index(drop=True).copy()
+        te_x = pre_te_x.reset_index(drop=True).copy()
+        if how == "one_hot":
+            ohe = OneHotEncoder(sparse=False, handle_unknown="error", drop="first")
+            tr_en = ohe.fit_transform(tr_x[target_col])
+            te_en = ohe.transform(te_x[target_col])
+            # 列名を取得
+            label = ohe.get_feature_names(target_col)
+            # データフレーム化
+            tr_en = pd.DataFrame(tr_en, columns=label)
+            te_en = pd.DataFrame(te_en, columns=label)
+            # データフレームを結合
+            tr_x = pd.concat([tr_x, tr_en], axis=1)
+            te_x = pd.concat([te_x, te_en], axis=1)
+        if save_name:
+            pickle.dump(ohe, open(save_name, "wb"))
         return tr_x.drop(columns=target_col, axis=1), te_x.drop(columns=target_col, axis=1)
 
 
-def super_fillna(pre_tr_x, pre_te_x, target_col, how="mean"):
+# 欠損値補完
+def super_fillna(pre_tr_x, pre_te_x, target_col, how="mean", save_name=False):
     tr_x = pre_tr_x.copy()
     te_x = pre_te_x.copy()
     if how == "mean":
@@ -70,18 +90,22 @@ def super_fillna(pre_tr_x, pre_te_x, target_col, how="mean"):
         tr_x.fillna(fill_value, inplace=True)
         te_x.fillna(fill_value, inplace=True)
     elif how == "rf":
-        imputer = MissForest()
-        tr_x[target_col] = imputer.fit_transform(tr_x[target_col])
-        te_x[target_col] = imputer.transform(te_x[target_col])
+        fill_value = MissForest()
+        tr_x[target_col] = fill_value.fit_transform(tr_x[target_col])
+        te_x[target_col] = fill_value.transform(te_x[target_col])
+    if save_name:
+        pickle.dump(fill_value, open(save_name, "wb"))
     return tr_x, te_x
 
 
-def standerize(pre_tr_x, pre_te_x, target_col):
+def standerize(pre_tr_x, pre_te_x, target_col, save_name=False):
     tr_x = pre_tr_x.copy()
     te_x = pre_te_x.copy()
     sc = StandardScaler()
     tr_x[target_col] = sc.fit_transform(tr_x[target_col])
     te_x[target_col] = sc.transform(te_x[target_col])
+    if save_name:
+        pickle.dump(sc, open(save_name, "wb"))
     return tr_x, te_x
 
 
@@ -163,7 +187,6 @@ def train_cv(x, y, model, params, te_x=None, te_y=None, n_fold=4, stratified=Tru
     print(f"score {np.mean(scores)}")
 
     return va_preds, np.mean(te_preds, axis=0)
-
 
 # ハイパラメーターチューニング
 def tuningOfRF(X, y):
